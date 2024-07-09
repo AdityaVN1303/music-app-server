@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from 'cloudinary'
 import albumModel from '../models/albumModel.js';
+import jwt from 'jsonwebtoken'
 
 const addAlbum = async (req, res) => {
 
@@ -60,4 +61,69 @@ const removeAlbum = async (req, res) => {
 
 }
 
-export { addAlbum, listAlbum, removeAlbum   }
+const likeAlbum =  async (req , res)=>{
+
+    const {id} = req.params;
+    
+    try {
+     const token = req.cookies.jwt;
+        if(token){
+            jwt.verify(token , process.env.JWT_SECRET , {} , async (err , info)=>{
+                if(err){
+                    console.log(err);
+                    return res.status(400).json({error : "Unauthorized !!!"})
+                }
+ 
+                const album = await albumModel.findByIdAndUpdate(id , {
+                 $push : {
+                     likes : info.userId
+ 
+                 } 
+             },
+                 {
+                     new : true
+                 }
+             )
+                res.json(album);
+            });
+        }
+    } catch (error) {
+        console.log(error);
+     res.status(400).json(error);
+    }
+ 
+ }
+
+const unlikeAlbum = async (req , res)=>{
+
+    const {id} = req.params;
+    
+    try {
+     const token = req.cookies.jwt;
+        if(token){
+            jwt.verify(token , process.env.JWT_SECRET , {} , async (err , info)=>{
+                if(err){
+                    return res.status(400).json({error : "Unauthorized !!!"})
+                }
+ 
+                const album = await albumModel.findByIdAndUpdate(id , {
+                 $pull : {
+                     likes : info.userId
+ 
+                 } 
+             },
+                 {
+                     new : true
+                 }
+             )
+                // console.log(album)
+                res.json(album);
+            });
+        }
+    } catch (error) {
+     res.status(400).json(error);
+    }
+ 
+ }
+
+export { addAlbum, listAlbum, removeAlbum , likeAlbum , unlikeAlbum  }
