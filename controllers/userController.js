@@ -3,10 +3,12 @@ import * as EmailValidator from 'email-validator';
 import bcrypt from 'bcryptjs'
 import {generateTokenAndSetCookie} from '../lib/utils/generateToken.js'
 import { v2 as cloudinary } from 'cloudinary'
+import upload from "../middlewares/multer.js";
+import multer from 'multer'
 
 export const getMe = async (req , res)=>{
     try {
-        const user = await User.findById(req.user._id).select('-password');
+        const user = await User.findById(req.user._id).populate('likedPosts').populate('recentSongs').select('-password');
         return res.status(200).json(user);
     } catch (error) {
         console.log(`Error in getMe Controller : ${error.message}`);
@@ -14,60 +16,65 @@ export const getMe = async (req , res)=>{
     }
 }
 
-
+const uploadImg = upload.single('image');
 export const signup = async (req , res)=>{
    try {
-    const {fullname , username , email , password} = req.body;
-    const imageFile = req.file;
-   const validate =  EmailValidator.validate(email);
 
-   if(!validate){
-    return res.status(400).json({error : "Please enter a Valid Email"});
-   }
+    uploadImg(req, res, async function(err) {
 
-   const existingUser = await User.findOne({username});
-   if (existingUser) {
-    return res.status(400).json({error : "Username already Taken!"})
-   }
+        if (err instanceof multer.MulterError) {
 
-   const existingEmail = await User.findOne({email});
-   if (existingEmail) {
-    return res.status(400).json({error : "Email already Exists!"})
-   }
+            if(err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({error : "Upload Image less than 1.5mb"})
 
-   if(password.length < 6){
-    return res.status(400).json({error : "Password Must be atleast 6 letters Long !"})
-   }
+        } else if (err) {
+           return res.status(400).json({error : err});
+        }
 
-   const salt = await bcrypt.genSalt(10)
-   const hashedPass = await bcrypt.hash(password , salt);
-
-   const imageUpload = await cloudinary.uploader.upload(imageFile.path, { resource_type: "image" });
-
-   const newUser = new User({
-    username , 
-    password : hashedPass ,
-    fullname , 
-    email ,
-    profileImg : imageUpload.secure_url , 
-    isAdmin : false
-   });
-
-   if (newUser) {
-    generateTokenAndSetCookie(newUser._id , res);
-    await newUser.save();
-
-    return res.status(201).json({
-        _id : newUser._id , 
-        username : newUser.username,
-        fullname : newUser.fullname , 
-        email : newUser.email, 
-        profileImg : newUser.profileImg,  
+        const {fullname , username , email , password} = req.body;
+        const imageFile = req.file;
+       const validate =  EmailValidator.validate(email);
+    
+       if(!validate){
+        return res.status(400).json({error : "Please enter a Valid Email"});
+       }
+    
+       const existingUser = await User.findOne({username});
+       if (existingUser) {
+        return res.status(400).json({error : "Username already Taken!"})
+       }
+    
+       const existingEmail = await User.findOne({email});
+       if (existingEmail) {
+        return res.status(400).json({error : "Email already Exists!"})
+       }
+    
+       if(password.length < 6){
+        return res.status(400).json({error : "Password Must be atleast 6 letters Long !"})
+       }
+    
+       const salt = await bcrypt.genSalt(10)
+       const hashedPass = await bcrypt.hash(password , salt);
+    
+       const imageUpload = await cloudinary.uploader.upload(imageFile.path, { resource_type: "image" });
+    
+       const newUser = new User({
+        username , 
+        password : hashedPass ,
+        fullname , 
+        email ,
+        profileImg : imageUpload.secure_url , 
+        isAdmin : false
+       });
+    
+       if (newUser) {
+        await newUser.save();
+        return res.status(201).json({message : "User Created Successfully"});
+    
+       } else {
+        return res.status(500).json({error : "Invalid User Data"});
+       }
+        
     })
-
-   } else {
-    return res.status(500).json({error : "Invalid User Data"});
-   }
 
 
    } catch (error) {
@@ -81,7 +88,7 @@ export const login = async (req , res)=>{
         const {username , password} = req.body;
 
         const existingUser = await User.findOne({username});
-        console.log(password);
+        // console.log(existingUser.password);
         const isPasswordCorrect = await bcrypt.compare(password , existingUser?.password || "");
 
         if (!existingUser || !isPasswordCorrect) {
@@ -90,14 +97,7 @@ export const login = async (req , res)=>{
 
         generateTokenAndSetCookie(existingUser._id , res);
 
-
-        return res.status(200).json({
-            _id : existingUser._id , 
-            username : existingUser.username,
-            fullname : existingUser.fullname , 
-            email : existingUser.email, 
-            profileImg : existingUser.profileImg, 
-        })
+        return res.status(200).json({message : "User Logged in Successfully !"});
 
 
     } catch (error) {
@@ -118,13 +118,25 @@ export const logout = async (req , res)=>{
     }
 }
 
+const singleImg = upload.single('image');
 export const updateUser = async (req, res) => {
-	let { fullname, email, username, currentPassword, newPassword, } = req.body;
-	let profileImg = req.file;
-
-	const userId = req.user._id;
-
 	try {
+
+        singleImg(req, res, async function(err) {
+
+            if (err instanceof multer.MulterError) {
+
+                if(err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({error : "Upload Image less than 100kb"})
+
+                } else if (err) {
+                   return res.status(400).json({error : err});
+                }
+
+        let { fullname, email, username, currentPassword, newPassword, } = req.body;
+        let profileImg = req?.file;
+            
+        const userId = req.user._id;
+
 		let user = await User.findById(userId);
 		if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -156,15 +168,65 @@ export const updateUser = async (req, res) => {
 		user.username = username || user.username;
 		user.profileImg = profileImg || user.profileImg;
 
-		user = await user.save();
+		try {
+            user = await user.save();
+            return res.status(200).json({message : "User Updated Successfully !"});
+        } catch (error) {
+            console.log(error);
+            return res.status(500).json({error : "Username or Email already exists !"});
+        }
 
-		// password should be null in response
-		user.password = null;
-
-		return res.status(200).json(user);
+    })
 	} catch (error) {
 		console.log("Error in updateUser: ", error.message);
 		res.status(500).json({ error: error.message });
 	}
 };
 
+
+export const addRecent = async (req , res)=>{
+    try {
+        const {id} = req.body;
+
+        if (req.user.recentSongs.includes(id)) {
+            await User.findByIdAndUpdate(req.user._id , {
+                $pull : {
+                    recentSongs : id
+                } 
+            },
+                {
+                    new : true
+                }
+            )
+        }
+
+        if (req.user.recentSongs.length >= 5) {
+            await User.findByIdAndUpdate(req.user._id , {
+                $pop : {
+                    recentSongs : -1
+                } 
+            },
+                {
+                    new : true
+                }
+            )
+        }
+
+            await User.findByIdAndUpdate(req.user._id , {
+                $push : {
+                    recentSongs : id
+                } 
+            },
+                {
+                    new : true
+                }
+            )
+
+        return res.status(200).json({message : "Song added to Recent Songs !"});
+
+
+    } catch (error) {
+        console.log(`Error in addRecent Controller : ${error.message}`);
+        return res.status(400).json({error : "Internal Server Error"});
+    }
+}

@@ -28,7 +28,15 @@ const userSchema = new mongoose.Schema({
     isAdmin :{
         type : Boolean , 
         required : true ,
-    }
+    } ,
+    likedPosts : [{
+        type : mongoose.Schema.Types.ObjectId , 
+        ref : "album"
+    }] ,
+    recentSongs : [{
+        type : mongoose.Schema.Types.ObjectId , 
+        ref : "song"
+    }]
 
 
 } ,{timestamps : true})
