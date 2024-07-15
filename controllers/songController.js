@@ -102,7 +102,7 @@ const removeSong = async (req, res) => {
         await cloudinary.uploader.destroy(song.image.split("/").pop().split(".")[0]);
         await cloudinary.uploader.destroy(song.file.split("/").pop().split(".")[0]);
         const deleted = await songModel.findByIdAndDelete(req.body.id);
-        console.log(deleted);
+        // console.log(deleted);
          return res.status(200).json({message : "Song Removed !"});
 
     } catch (error) {
