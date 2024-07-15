@@ -11,7 +11,7 @@ import cookieParser from "cookie-parser";
 
 // app config
 const app = express();
-app.use(cors({credentials : true , origin : 'https://music-app-client-8ovfj8kg2-adityavn1303s-projects.vercel.app'}));
+app.use(cors({credentials : true , origin : 'https://music-app-client-five.vercel.app'}));
 app.use(express.json({ limit: "5mb" }));
 app.use(cookieParser());
 connectCloudinary();
